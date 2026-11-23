@@ -28,7 +28,28 @@ There's no official Google Tasks MCP server, so this covers that. Full CRUD, OAu
 - `google_tasks_move_task` reorder, re-parent, or move a task to a different list
 - `google_tasks_clear_completed_tasks` clear all completed tasks from a list
 
-Every tool supports `response_format: "markdown" | "json"`.
+The REST API tools support `response_format: "markdown" | "json"`.
+
+### Weekly repeating tasks (experimental)
+
+The optional `google_tasks_create_recurring_task` tool uses the dedicated Google Tasks website to create an all-day weekly series starting on the requested date. Google manages subsequent occurrences. The MCP server starts sandboxed, headless Chromium only when this tool runs and closes it after the call.
+
+1. Install a sandbox-enabled Chromium on the server. On Ubuntu the packaged browser is available through `sudo snap install chromium`, with executable `/snap/bin/chromium`.
+2. As the same OS user that runs MCP, open the browser with a dedicated, private profile and sign in at `https://tasks.google.com/`. A headless server can use SSH X11 forwarding for this interactive step. For the Ubuntu snap, a suitable profile directory is `$HOME/snap/chromium/common/google-tasks-profile`. Close the browser after your task lists appear. The tool expects English (US) controls. If Google requests sign-in again, reopen the same profile interactively.
+3. Set these variables in the MCP server environment and restart the server for the tool to appear.
+
+| Variable | Value |
+| --- | --- |
+| `GOOGLE_TASKS_BROWSER_EXECUTABLE` | Absolute path to the sandbox-enabled browser |
+| `GOOGLE_TASKS_BROWSER_PROFILE` | Absolute path to the dedicated signed-in profile |
+| `GOOGLE_TASKS_BROWSER_ACCOUNT` | Email address expected in the Google account menu |
+| `GOOGLE_TASKS_BROWSER_TASKLIST` | Exact name of the destination list in Google Tasks |
+
+For example, `{"title":"Review budget","start_date":"2026-12-07"}` creates a task that repeats every Monday with no end date. The tool checks the selected date and list before saving, then opens the saved task’s date control to verify the weekly rule. If the save outcome is uncertain, check the destination list before retrying.
+
+To change an existing series in place, call `google_tasks_update_recurring_task` with its exact active title. For example, `{"title":"Review budget","frequency":"weekly","weekdays":["Friday"],"interval":2}` changes it to every other Friday. Supported frequencies are daily, weekly, monthly, and yearly. The interval is 1–99 and defaults to the series’ current multiplier. Supplying weekdays replaces the weekly day selection. A weekdays-only update implies weekly frequency. The tool verifies the rule after reloading Google Tasks. Time, end conditions, and one-off occurrence edits are outside this tool’s inputs.
+
+To delete an entire series, call `google_tasks_delete_recurring_task` with the exact title, for example `{"title":"Review budget"}`. It checks the active occurrence, the configured list, and Google's repeating-task confirmation before deleting all past and future occurrences. If several visible active tasks share the title, give the intended series a unique title first. The recurring-task tools share one Chromium session limit.
 
 ## Quick start
 

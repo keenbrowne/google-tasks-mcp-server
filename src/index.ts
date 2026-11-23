@@ -12,6 +12,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { registerTaskListTools } from "./tools/tasklists.js";
 import { registerTaskTools } from "./tools/tasks.js";
+import { registerRecurringTaskTool } from "./tools/recurringTasks.js";
 import { AuthConfigError } from "./auth.js";
 import { TOKEN_PATH, CLIENT_SECRET_PATH } from "./constants.js";
 import fs from "node:fs";
@@ -51,6 +52,7 @@ function main(): void {
     const server = new McpServer({ name: "google-tasks-mcp-server", version });
     registerTaskListTools(server);
     registerTaskTools(server);
+    registerRecurringTaskTool(server);
     return server;
   }, { onerror: (error) => console.error("MCP transport error:", error) });
   console.error("google-tasks-mcp-server running via stdio");
