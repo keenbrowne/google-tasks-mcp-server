@@ -13,7 +13,7 @@ import {
 } from "../schemas/schemas.js";
 import * as client from "../services/tasksClient.js";
 import { describeApiError } from "../services/tasksClient.js";
-import { renderResult, taskListToMarkdown, taskListsToMarkdown, truncateItems } from "../format.js";
+import { renderPage, renderResult, taskListToMarkdown, taskListsToMarkdown } from "../format.js";
 
 export function registerTaskListTools(server: McpServer): void {
   server.registerTool(
@@ -39,19 +39,13 @@ Error Handling:
     },
     async (params: ListTaskListsInput) => {
       try {
-        const { items, nextPageToken } = await client.listTaskLists({
-          maxResults: params.limit,
-          pageToken: params.page_token,
-        });
-        const { text: mdBody, truncated, returnedCount } = truncateItems(items, taskListsToMarkdown);
-        const json = {
-          count: returnedCount,
-          task_lists: items.slice(0, returnedCount),
-          has_more: Boolean(nextPageToken) || truncated,
-          ...(nextPageToken ? { next_page_token: nextPageToken } : {}),
-          ...(truncated ? { truncation_message: "Response truncated; narrow with a smaller limit." } : {}),
-        };
-        return renderResult(params.response_format, json, mdBody);
+        return await renderPage(
+          params.limit,
+          (maxResults) => client.listTaskLists({ maxResults, pageToken: params.page_token }),
+          params.response_format,
+          "task_lists",
+          taskListsToMarkdown
+        );
       } catch (error) {
         return { isError: true, content: [{ type: "text", text: describeApiError(error) }] };
       }

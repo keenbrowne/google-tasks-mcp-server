@@ -21,7 +21,7 @@ import {
 } from "../schemas/schemas.js";
 import * as client from "../services/tasksClient.js";
 import { describeApiError } from "../services/tasksClient.js";
-import { renderResult, taskToMarkdown, tasksToMarkdown, truncateItems } from "../format.js";
+import { renderPage, renderResult, taskToMarkdown, tasksToMarkdown } from "../format.js";
 
 export function registerTaskTools(server: McpServer): void {
   server.registerTool(
@@ -55,26 +55,23 @@ Error Handling:
     },
     async (params: ListTasksInput) => {
       try {
-        const { items, nextPageToken } = await client.listTasks({
-          taskListId: params.tasklist_id,
-          maxResults: params.limit,
-          pageToken: params.page_token,
-          showCompleted: params.show_completed,
-          showDeleted: params.show_deleted,
-          showHidden: params.show_hidden,
-          dueMin: params.due_min,
-          dueMax: params.due_max,
-          updatedMin: params.updated_min,
-        });
-        const { text: mdBody, truncated, returnedCount } = truncateItems(items, (i) => tasksToMarkdown(i));
-        const json = {
-          count: returnedCount,
-          tasks: items.slice(0, returnedCount),
-          has_more: Boolean(nextPageToken) || truncated,
-          ...(nextPageToken ? { next_page_token: nextPageToken } : {}),
-          ...(truncated ? { truncation_message: "Response truncated; narrow with a smaller limit or filters." } : {}),
-        };
-        return renderResult(params.response_format, json, mdBody);
+        return await renderPage(
+          params.limit,
+          (maxResults) => client.listTasks({
+            taskListId: params.tasklist_id,
+            maxResults,
+            pageToken: params.page_token,
+            showCompleted: params.show_completed,
+            showDeleted: params.show_deleted,
+            showHidden: params.show_hidden,
+            dueMin: params.due_min,
+            dueMax: params.due_max,
+            updatedMin: params.updated_min,
+          }),
+          params.response_format,
+          "tasks",
+          tasksToMarkdown
+        );
       } catch (error) {
         return { isError: true, content: [{ type: "text", text: describeApiError(error) }] };
       }

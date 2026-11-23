@@ -1,22 +1,31 @@
 import { CHARACTER_LIMIT } from "./constants.js";
 import { ResponseFormat, type TaskListSummary, type TaskSummary } from "./types.js";
 
-/** Truncates a JSON-serializable payload's array field if the rendered text would
- * exceed CHARACTER_LIMIT, and notes the truncation so the agent knows to page further. */
-export function truncateItems<T>(
-  items: T[],
-  buildText: (items: T[]) => string
-): { text: string; truncated: boolean; returnedCount: number } {
-  let text = buildText(items);
-  if (text.length <= CHARACTER_LIMIT || items.length <= 1) {
-    return { text, truncated: false, returnedCount: items.length };
+/** Fetch a smaller Google page when needed so its token follows the last returned item. */
+export async function renderPage<T>(
+  limit: number,
+  fetchPage: (pageSize: number) => Promise<{ items: T[]; nextPageToken?: string }>,
+  format: ResponseFormat,
+  itemKey: "tasks" | "task_lists",
+  toMarkdown: (items: T[]) => string
+): Promise<ReturnType<typeof renderResult>> {
+  let pageSize = limit;
+  while (true) {
+    const { items, nextPageToken } = await fetchPage(pageSize);
+    const result = renderResult(format, {
+      count: items.length,
+      [itemKey]: items,
+      has_more: Boolean(nextPageToken),
+      ...(nextPageToken ? { next_page_token: nextPageToken } : {}),
+    }, toMarkdown(items));
+
+    if (result.content[0].text.length <= CHARACTER_LIMIT || items.length <= 1 || pageSize === 1) {
+      return result;
+    }
+
+    // Repeat the request with the same starting token and filters.
+    pageSize = Math.floor(Math.min(pageSize, items.length) / 2);
   }
-  let slice = items;
-  while (text.length > CHARACTER_LIMIT && slice.length > 1) {
-    slice = slice.slice(0, Math.max(1, Math.floor(slice.length / 2)));
-    text = buildText(slice);
-  }
-  return { text, truncated: true, returnedCount: slice.length };
 }
 
 export function formatDate(iso?: string): string {
