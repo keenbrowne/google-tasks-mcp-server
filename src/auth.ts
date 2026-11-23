@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { OAuth2Client } from "google-auth-library";
-import { CLIENT_SECRET_PATH, OAUTH_LOOPBACK_PORT, TOKEN_PATH } from "./constants.js";
+import { CLIENT_SECRET_PATH, OAUTH_REDIRECT_URI, TOKEN_PATH } from "./constants.js";
 import type { ClientSecretFile, StoredToken } from "./types.js";
 
 export class AuthConfigError extends Error {}
@@ -34,8 +34,7 @@ export function loadClientSecret(): { clientId: string; clientSecret: string } {
  * one-time interactive authorization flow (see src/authorize.ts). */
 export function createOAuth2Client(): OAuth2Client {
   const { clientId, clientSecret } = loadClientSecret();
-  const redirectUri = `http://localhost:${OAUTH_LOOPBACK_PORT}/oauth2callback`;
-  return new OAuth2Client({ clientId, clientSecret, redirectUri });
+  return new OAuth2Client({ clientId, clientSecret, redirectUri: OAUTH_REDIRECT_URI });
 }
 
 export function saveToken(token: StoredToken): void {

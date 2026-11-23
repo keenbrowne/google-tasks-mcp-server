@@ -26,5 +26,8 @@ export const TOKEN_PATH =
 
 /** Loopback port used during the one-time `npm run auth` OAuth flow. */
 export const OAUTH_LOOPBACK_PORT = parseInt(process.env.GOOGLE_TASKS_OAUTH_PORT ?? "53682", 10);
+export const OAUTH_LOOPBACK_HOST = "127.0.0.1";
+export const OAUTH_CALLBACK_PATH = "/oauth2callback";
+export const OAUTH_REDIRECT_URI = `http://${OAUTH_LOOPBACK_HOST}:${OAUTH_LOOPBACK_PORT}${OAUTH_CALLBACK_PATH}`;
 
 export const DEFAULT_TASKLIST_ID = "@default";

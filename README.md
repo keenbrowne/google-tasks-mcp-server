@@ -116,7 +116,7 @@ npm run auth
 GOOGLE_TASKS_CLIENT_SECRET=./credentials/client_secret.json npm run auth
 ```
 
-This prints a Google consent URL and tries to open it in your default browser. Sign in, grant access, and it redirects back to a short-lived local server on `http://localhost:53682`. The token gets cached to `~/.config/google-tasks-mcp-server/token.json` (override with `GOOGLE_TASKS_TOKEN_PATH`) and refreshed automatically from then on, so you shouldn't need to run this again unless you revoke access.
+This prints a Google consent URL and tries to open it in your default browser. Sign in, grant access, and it redirects back to a short-lived local server on `http://127.0.0.1:53682`. The token gets cached to `~/.config/google-tasks-mcp-server/token.json` (override with `GOOGLE_TASKS_TOKEN_PATH`) and refreshed automatically from then on, so you shouldn't need to run this again unless you revoke access.
 
 Run this on the same machine and in the same regular terminal you'll actually use day to day. See Troubleshooting below if you're running it from a container, VM, or sandboxed shell where `localhost` doesn't map back to your browser.
 

@@ -4,14 +4,24 @@
  *
  * Run with `npm run auth` (or `npx -y -p @girmmy/google-tasks-mcp-server google-tasks-mcp-auth`).
  * Opens (or prints) a Google consent URL, starts a
- * short-lived local server to catch the OAuth redirect on localhost, exchanges
+ * short-lived loopback server to catch the OAuth redirect, exchanges
  * the returned code for tokens, and caches them to disk (see constants.ts:TOKEN_PATH)
  * for the MCP server to use on every subsequent run.
  */
 import http from "node:http";
+import { randomBytes } from "node:crypto";
 import { URL } from "node:url";
+import { CodeChallengeMethod } from "google-auth-library";
 import { createOAuth2Client, saveToken, AuthConfigError } from "./auth.js";
-import { OAUTH_LOOPBACK_PORT, TASKS_SCOPE, TOKEN_PATH, CLIENT_SECRET_PATH } from "./constants.js";
+import {
+  CLIENT_SECRET_PATH,
+  OAUTH_CALLBACK_PATH,
+  OAUTH_LOOPBACK_HOST,
+  OAUTH_LOOPBACK_PORT,
+  OAUTH_REDIRECT_URI,
+  TASKS_SCOPE,
+  TOKEN_PATH,
+} from "./constants.js";
 
 async function openInBrowser(url: string): Promise<void> {
   // Best-effort convenience only — if this fails (headless/remote environment),
@@ -39,27 +49,30 @@ async function main(): Promise<void> {
     throw err;
   }
 
+  const state = randomBytes(32).toString("base64url");
+  const { codeVerifier, codeChallenge } = await client.generateCodeVerifierAsync();
   const authUrl = client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent", // ensures a refresh_token is issued even on re-auth
     scope: [TASKS_SCOPE],
+    state,
+    code_challenge: codeChallenge,
+    code_challenge_method: CodeChallengeMethod.S256,
   });
 
   console.log("Google Tasks MCP server — authorization\n");
   console.log(`Using OAuth client secret: ${CLIENT_SECRET_PATH}`);
   console.log(`Token will be cached to:   ${TOKEN_PATH}\n`);
-  console.log("1. Open this URL in a browser and sign in / grant access:\n");
-  console.log(`   ${authUrl}\n`);
-  console.log(`2. Waiting for the redirect back to http://localhost:${OAUTH_LOOPBACK_PORT}/oauth2callback ...`);
-
-  void openInBrowser(authUrl);
-
   const code = await new Promise<string>((resolve, reject) => {
     const server = http.createServer((req, res) => {
-      if (!req.url) return;
-      const url = new URL(req.url, `http://localhost:${OAUTH_LOOPBACK_PORT}`);
-      if (url.pathname !== "/oauth2callback") {
+      if (req.method !== "GET" || req.url?.split("?", 1)[0] !== OAUTH_CALLBACK_PATH) {
         res.writeHead(404).end();
+        return;
+      }
+      const url = new URL(req.url, OAUTH_REDIRECT_URI);
+
+      if (url.searchParams.get("state") !== state) {
+        res.writeHead(400, { "Content-Type": "text/plain" }).end("Invalid OAuth state.");
         return;
       }
 
@@ -68,7 +81,7 @@ async function main(): Promise<void> {
 
       res.writeHead(200, { "Content-Type": "text/html" });
       if (error) {
-        res.end(`<h1>Authorization failed</h1><p>${error}</p><p>You can close this tab.</p>`);
+        res.end("<h1>Authorization failed</h1><p>See the terminal for details.</p>");
         server.close();
         reject(new Error(`Google returned an OAuth error: ${error}`));
         return;
@@ -85,11 +98,16 @@ async function main(): Promise<void> {
       resolve(returnedCode);
     });
 
-    server.listen(OAUTH_LOOPBACK_PORT);
     server.on("error", reject);
+    server.listen(OAUTH_LOOPBACK_PORT, OAUTH_LOOPBACK_HOST, () => {
+      console.log("1. Open this URL in a browser and sign in / grant access:\n");
+      console.log(`   ${authUrl}\n`);
+      console.log(`2. Waiting for the redirect back to ${OAUTH_REDIRECT_URI} ...`);
+      void openInBrowser(authUrl);
+    });
   });
 
-  const { tokens } = await client.getToken(code);
+  const { tokens } = await client.getToken({ code, codeVerifier });
   if (!tokens.refresh_token) {
     console.warn(
       "\nWarning: no refresh_token was returned. If you've authorized this app before, " +
