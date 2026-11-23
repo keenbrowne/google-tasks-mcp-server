@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import {
   ClearCompletedTasksInputSchema,
   CompleteTaskInputSchema,
@@ -50,7 +50,7 @@ Examples:
 
 Error Handling:
   - Returns "Error: Not found (404)" if tasklist_id doesn't exist.`,
-      inputSchema: ListTasksInputSchema.shape,
+      inputSchema: ListTasksInputSchema,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async (params: ListTasksInput) => {
@@ -93,7 +93,7 @@ Returns the task's title, status, due date, notes, completion time, and parent (
 
 Error Handling:
   - Returns "Error: Not found (404)" if task_id doesn't exist in that list.`,
-      inputSchema: GetTaskInputSchema.shape,
+      inputSchema: GetTaskInputSchema,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async (params: GetTaskInput) => {
@@ -126,7 +126,7 @@ Returns the newly created task including its id.
 Examples:
   - Use when: "Add 'buy milk' to my grocery list"
   - Use when: "Add a subtask 'draft outline' under my 'Write report' task" -> set parent_task_id`,
-      inputSchema: CreateTaskInputSchema.shape,
+      inputSchema: CreateTaskInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
     async (params: CreateTaskInput) => {
@@ -169,7 +169,7 @@ google_tasks_reopen_task, which are more explicit about intent.
 Error Handling:
   - Returns a validation error if no fields are provided to update.
   - Returns "Error: Not found (404)" if task_id doesn't exist.`,
-      inputSchema: UpdateTaskInputSchema.shape,
+      inputSchema: UpdateTaskInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async (params: UpdateTaskInput) => {
@@ -220,7 +220,7 @@ Returns the updated task with status='completed' and a completion timestamp.
 
 Examples:
   - Use when: "Mark 'buy milk' as done"`,
-      inputSchema: CompleteTaskInputSchema.shape,
+      inputSchema: CompleteTaskInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async (params: CompleteTaskInput) => {
@@ -249,7 +249,7 @@ Args:
   - response_format ('markdown' | 'json'): Output format (default: 'markdown')
 
 Returns the updated task with status='needsAction'.`,
-      inputSchema: ReopenTaskInputSchema.shape,
+      inputSchema: ReopenTaskInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async (params: ReopenTaskInput) => {
@@ -282,7 +282,7 @@ Don't use when: You want to remove all completed tasks at once — use google_ta
 
 Error Handling:
   - Returns "Error: Not found (404)" if task_id doesn't exist.`,
-      inputSchema: DeleteTaskInputSchema.shape,
+      inputSchema: DeleteTaskInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },
     async (params: DeleteTaskInput) => {
@@ -320,7 +320,7 @@ Examples:
 
 Error Handling:
   - Returns "Error: Not found (404)" if task_id, parent_task_id, or destination_tasklist_id doesn't exist.`,
-      inputSchema: MoveTaskInputSchema.shape,
+      inputSchema: MoveTaskInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
     async (params: MoveTaskInput) => {
@@ -354,7 +354,7 @@ Returns a confirmation message.
 
 Examples:
   - Use when: "Clear out everything I've already finished on my to-do list"`,
-      inputSchema: ClearCompletedTasksInputSchema.shape,
+      inputSchema: ClearCompletedTasksInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },
     async (params: ClearCompletedTasksInput) => {

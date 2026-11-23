@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import {
   CreateTaskListInputSchema,
   DeleteTaskListInputSchema,
@@ -34,7 +34,7 @@ Examples:
 
 Error Handling:
   - Returns "Error: ..." with guidance if authorization is missing or expired (run \`npm run auth\`).`,
-      inputSchema: ListTaskListsInputSchema.shape,
+      inputSchema: ListTaskListsInputSchema,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async (params: ListTaskListsInput) => {
@@ -66,7 +66,7 @@ Returns the task list's id, title, and last-updated time.
 
 Error Handling:
   - Returns "Error: Not found (404)" if the tasklist_id doesn't exist.`,
-      inputSchema: GetTaskListInputSchema.shape,
+      inputSchema: GetTaskListInputSchema,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async (params: GetTaskListInput) => {
@@ -94,7 +94,7 @@ Returns the newly created task list's id and title. Use the returned id as taskl
 Examples:
   - Use when: "Make me a new task list called Home Renovation"
   - Don't use when: You just want to add a task to an existing list (use google_tasks_create_task instead).`,
-      inputSchema: CreateTaskListInputSchema.shape,
+      inputSchema: CreateTaskListInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
     async (params: CreateTaskListInput) => {
@@ -122,7 +122,7 @@ Returns the updated task list.
 
 Error Handling:
   - Returns "Error: Not found (404)" if tasklist_id doesn't exist.`,
-      inputSchema: UpdateTaskListInputSchema.shape,
+      inputSchema: UpdateTaskListInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async (params: UpdateTaskListInput) => {
@@ -149,7 +149,7 @@ Returns a confirmation message.
 Error Handling:
   - Returns "Error: Invalid request (400)" if you try to delete the default list.
   - Returns "Error: Not found (404)" if tasklist_id doesn't exist.`,
-      inputSchema: DeleteTaskListInputSchema.shape,
+      inputSchema: DeleteTaskListInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },
     async (params: DeleteTaskListInput) => {

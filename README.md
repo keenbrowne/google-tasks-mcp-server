@@ -32,6 +32,8 @@ Every tool supports `response_format: "markdown" | "json"`.
 
 ## Quick start
 
+Requires Node.js 20 or newer.
+
 From npm:
 
 ```bash

@@ -7,12 +7,7 @@ export const responseFormatField = z
   .default(ResponseFormat.MARKDOWN)
   .describe("Output format: 'markdown' for human-readable text or 'json' for machine-readable structured data.");
 
-// A factory, not a shared instance. zod-to-json-schema deduplicates repeated
-// schema *instances* into `$ref`s pointing at the first occurrence, which drops
-// each field's own .describe() text — `due_max` ended up documented with
-// `due_min`'s description, i.e. exactly inverted. A fresh instance per field
-// keeps the descriptions intact and keeps the emitted schema $ref-free, which
-// strict function-calling validators (OpenAI/Codex) also require.
+// Give each date filter its own schema so its description stays with that field.
 const rfc3339DateTime = () =>
   z
     .string()

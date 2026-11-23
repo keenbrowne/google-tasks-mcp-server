@@ -8,8 +8,8 @@
  * Authorize once before starting this server: `google-tasks-mcp-auth` when
  * installed from npm, or `npm run auth` from a source checkout.
  */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { registerTaskListTools } from "./tools/tasklists.js";
 import { registerTaskTools } from "./tools/tasks.js";
 import { AuthConfigError } from "./auth.js";
@@ -23,15 +23,7 @@ import { createRequire } from "node:module";
 // root from both dist/ (published) and src/ (tsx dev runs).
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
 
-const server = new McpServer({
-  name: "google-tasks-mcp-server",
-  version,
-});
-
-registerTaskListTools(server);
-registerTaskTools(server);
-
-async function main(): Promise<void> {
+function main(): void {
   // Check both credential files up front. Without this the server starts
   // cleanly and then fails on every single tool call, which reads as a broken
   // server rather than a missing file.
@@ -55,16 +47,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  serveStdio(() => {
+    const server = new McpServer({ name: "google-tasks-mcp-server", version });
+    registerTaskListTools(server);
+    registerTaskTools(server);
+    return server;
+  }, { onerror: (error) => console.error("MCP transport error:", error) });
   console.error("google-tasks-mcp-server running via stdio");
 }
 
-main().catch((error) => {
+try {
+  main();
+} catch (error) {
   if (error instanceof AuthConfigError) {
     console.error(`ERROR: ${error.message}`);
   } else {
     console.error("Server error:", error);
   }
   process.exit(1);
-});
+}
