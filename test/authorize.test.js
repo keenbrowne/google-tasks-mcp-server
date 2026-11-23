@@ -33,7 +33,7 @@ test("OAuth listens on loopback and exchanges only a callback with matching stat
   });
 
   let openBrowser;
-  const browserOpened = new Promise((resolve) => { openBrowser = resolve; });
+  const waitForBrowser = () => new Promise((resolve) => { openBrowser = resolve; });
   t.mock.method(childProcess, "execFile", (_command, args) => openBrowser(new URL(args.at(-1))));
   syncBuiltinESMExports();
 
@@ -44,6 +44,7 @@ test("OAuth listens on loopback and exchanges only a callback with matching stat
     return { tokens: { refresh_token: "test-refresh-token" } };
   });
 
+  const browserOpened = waitForBrowser();
   await import("../dist/authorize.js");
   const consentUrl = await browserOpened;
   const { arguments: [port, host] } = server.listen.mock.calls[0];
@@ -80,5 +81,26 @@ test("OAuth listens on loopback and exchanges only a callback with matching stat
   );
   assert.deepEqual(JSON.parse(fs.readFileSync(process.env.GOOGLE_TASKS_TOKEN_PATH, "utf8")), {
     refresh_token: "test-refresh-token",
+  });
+
+  await t.test("missing refresh token fails and preserves the existing cache", async (t) => {
+    getToken.mock.mockImplementation(async () => ({
+      tokens: { access_token: "access-token-only" },
+    }));
+    let finish;
+    const exited = new Promise((resolve) => { finish = resolve; });
+    const error = t.mock.method(console, "error", () => {});
+    const log = t.mock.method(console, "log", () => {});
+    t.mock.method(process, "exit", finish);
+
+    const secondBrowserOpened = waitForBrowser();
+    await import("../dist/authorize.js?reauthorize");
+    const secondState = (await secondBrowserOpened).searchParams.get("state");
+    const previousCache = fs.readFileSync(process.env.GOOGLE_TASKS_TOKEN_PATH, "utf8");
+    assert.equal(sendCallback(`code=test-code&state=${secondState}`), 200);
+    assert.equal(await exited, 1);
+    assert.match(error.mock.calls[0].arguments.join(" "), /no refresh token/);
+    assert.ok(log.mock.calls.every(({ arguments: args }) => !args[0].includes("Authorization complete")));
+    assert.equal(fs.readFileSync(process.env.GOOGLE_TASKS_TOKEN_PATH, "utf8"), previousCache);
   });
 });

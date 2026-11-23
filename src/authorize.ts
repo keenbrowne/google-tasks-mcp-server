@@ -93,7 +93,7 @@ async function main(): Promise<void> {
         return;
       }
 
-      res.end("<h1>Authorization complete</h1><p>You can close this tab and return to the terminal.</p>");
+      res.end("<h1>Authorization code received</h1><p>You can close this tab and check the result in the terminal.</p>");
       server.close();
       resolve(returnedCode);
     });
@@ -109,8 +109,8 @@ async function main(): Promise<void> {
 
   const { tokens } = await client.getToken({ code, codeVerifier });
   if (!tokens.refresh_token) {
-    console.warn(
-      "\nWarning: no refresh_token was returned. If you've authorized this app before, " +
+    throw new Error(
+      "Google returned no refresh token. The token cache was left unchanged. If you've authorized this app before, " +
         "revoke access at https://myaccount.google.com/permissions and authorize again."
     );
   }
