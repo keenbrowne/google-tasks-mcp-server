@@ -67,7 +67,7 @@ export function registerRecurringTaskTool(server: McpServer): void {
     }
   };
 
-  async function findSeries(page: Page, title: string, state: { step: string }) {
+  async function findTask(page: Page, title: string, state: { step: string }, requireSeries: boolean) {
     state.step = "find the active task";
     await page.getByRole("button", { name: "Add a task", exact: true }).first().waitFor();
     const row = page.getByRole("listitem").filter({
@@ -82,15 +82,16 @@ export function registerRecurringTaskTool(server: McpServer): void {
     const series = row.filter({
       has: page.getByLabel(new RegExp(`^${escapedTitle} with date .+, repeating$`, "s")),
     });
-    if (await series.count() !== 1) return { error: fail("Google Tasks does not identify this task as repeating.") };
+    const repeating = await series.count() === 1;
+    if (requireSeries && !repeating) return { error: fail("Google Tasks does not identify this task as repeating.") };
     state.step = "verify the series belongs to the configured task list";
-    await series.hover();
-    await series.getByRole("button", { name: "Task options", exact: true }).click();
+    await row.hover();
+    await row.getByRole("button", { name: "Task options", exact: true }).click();
     const menu = page.getByRole("menu").filter({
       has: page.getByRole("menuitemcheckbox", { name: `Move to ${taskList}`, exact: true, checked: true }),
     });
     await menu.waitFor();
-    return { row, menu };
+    return { row, menu, repeating };
   }
 
   server.registerTool(
@@ -166,31 +167,79 @@ export function registerRecurringTaskTool(server: McpServer): void {
     "google_tasks_update_recurring_task",
     {
       title: "Update Google Task Series",
-      description: "Change the repeat rule of an existing series in the configured list. Use the exact active task title. Weekdays replace the weekly day selection. Omitted interval keeps the existing multiplier.",
+      description: "Edit recurrence in place. Set convert_if_not_recurring to start repetition on a one-off task. Set frequency to none to stop future repeats and keep the active task. Google prevents re-enabling recurrence on that stopped task. Use the exact active task title. Weekdays replace the weekly day selection. Omitted interval keeps the existing multiplier.",
       inputSchema: z.object({
         title: z.string().trim().min(1).max(1023),
-        frequency: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
+        frequency: z.enum(["daily", "weekly", "monthly", "yearly", "none"]).optional(),
+        convert_if_not_recurring: z.boolean().optional().describe("Allow the existing one-off task to become recurring"),
         interval: z.number().int().min(1).max(99).optional().describe("Repeat every N days, weeks, months, or years"),
         weekdays: z.array(z.enum(days)).min(1).max(7).optional().describe("Days of the week on which to repeat"),
       }).strict(),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },
-    ({ title, frequency, interval, weekdays }) => {
+    ({ title, frequency, interval, weekdays, convert_if_not_recurring }) => {
+      if (frequency === "none" && (interval || weekdays || convert_if_not_recurring)) return fail("Stopping recurrence cannot be combined with a schedule or conversion.");
+      if (convert_if_not_recurring && !frequency && !weekdays) return fail("Specify a frequency or weekdays to start recurrence.");
       if (!frequency && !interval && !weekdays) return fail("Supply a frequency, interval, or weekdays.");
       if (weekdays && frequency && frequency !== "weekly") return fail("Weekdays require a weekly schedule.");
       if (weekdays && new Set(weekdays).size !== weekdays.length) return fail("Weekdays must be unique.");
       return withTasksPage("update", async (page, state) => {
-        const target = await findSeries(page, title, state);
+        const target = await findTask(page, title, state, !convert_if_not_recurring && frequency !== "none");
         if (target.error) return target.error;
         const { row, menu } = target;
         await page.keyboard.press("Escape");
         await menu.waitFor({ state: "hidden" });
-        const openRule = async () => {
-          await row.getByRole("button", { name: /^Scheduled for / }).click();
-          await row.getByRole("button", { name: /^(Daily|Weekly|Monthly|Annually|Yearly|Every|Weekdays)\b/i }).click();
-        };
+        async function settleAndReload() {
+          // Done closes the dialog inside an inline task editor. Leave that
+          // editor and let its save finish before navigating away.
+          await page.getByRole("heading", { name: taskList, exact: true }).click();
+          // Tasks can keep background requests open. Network idle is only
+          // a settling hint; the authoritative check is the reloaded rule.
+          await page.waitForLoadState("networkidle", { timeout: 3_000 }).catch(error => {
+            if (!(error instanceof Error && error.name === "TimeoutError")) throw error;
+          });
+          // Verify a fresh page rather than the optimistic editor state.
+          await page.reload({ waitUntil: "domcontentloaded" });
+        }
+        const editTask = () => row.getByRole("group", { name: "Task title", exact: true }).click();
+        const ended = row.getByRole("button", { name: /^Ended repeating schedule:/ });
+        if (frequency === "none") {
+          await editTask();
+          if (await ended.isVisible()) return { content: [{ type: "text", text: `The repeating schedule for "${title}" has already ended.` }] };
+          if (!target.repeating && !await row.getByRole("button", { name: "Stop repeating", exact: true }).isVisible()) return { content: [{ type: "text", text: `"${title}" is already a one-off task.` }] };
+          state.step = "open the stop-repeating control";
+          const stop = row.getByRole("button", { name: "Stop repeating", exact: true });
+          await stop.waitFor();
+          await stop.press("Enter");
+          const confirm = page.getByRole("dialog", { name: "Stop repeating this task", exact: true })
+            .getByRole("button", { name: "Stop repeating", exact: true });
+          await confirm.waitFor();
+          state.mutationAttempted = true;
+          await confirm.click();
+          await confirm.waitFor({ state: "hidden" });
+          await settleAndReload();
+          const saved = await findTask(page, title, state, false);
+          if (saved.error) throw new Error("Could not verify stopped task");
+          await page.keyboard.press("Escape");
+          await saved.menu.waitFor({ state: "hidden" });
+          await editTask();
+          await ended.waitFor();
+          return { content: [{ type: "text", text: `Stopped recurrence and verified "${title}" remains an active task in "${taskList}".` }] };
+        }
+        const repeatSummary = row.getByRole("button", { name: /^(Daily|Weekly|Monthly|Annually|Yearly|Every|Weekdays)\b/i });
         state.step = "open the series recurrence settings";
-        await openRule();
+        if (target.repeating) {
+          await row.getByRole("button", { name: /^Scheduled for / }).click();
+          if (await ended.isVisible()) return fail("This series has ended. Google requires a new task to start a new series.");
+          await repeatSummary.click();
+        } else {
+          await editTask();
+          const repeat = row.getByRole("button", { name: "Repeat", exact: true });
+          if (!await repeat.isVisible() || !await repeat.isEnabled()) {
+            return fail("Google Tasks does not offer Repeat for this task. A previously stopped series needs a new task to repeat again.");
+          }
+          await repeat.click();
+        }
         const dialog = page.getByRole("dialog", { name: "Options to set or edit the task recurrence.", exact: true });
         // Monthly rules add more unnamed comboboxes below the interval unit.
         const unit = dialog.getByRole("combobox", { name: "", exact: true }).first();
@@ -228,17 +277,9 @@ export function registerRecurringTaskTool(server: McpServer): void {
         state.mutationAttempted = true;
         await dialog.getByRole("button", { name: "Done", exact: true }).click();
         await dialog.waitFor({ state: "hidden" });
-        // Done closes the dialog inside an inline task editor. Leave that
-        // editor and let its save finish before navigating away.
-        await page.getByRole("heading", { name: taskList, exact: true }).click();
-        // Tasks can keep background requests open. Network idle is only
-        // a settling hint; the authoritative check is the reloaded rule.
-        await page.waitForLoadState("networkidle", { timeout: 3_000 }).catch(error => {
-          if (!(error instanceof Error && error.name === "TimeoutError")) throw error;
-        });
-        // Verify a fresh page rather than the optimistic editor state.
-        await page.reload({ waitUntil: "domcontentloaded" });
-        await openRule();
+        await settleAndReload();
+        await row.getByRole("button", { name: /^Scheduled for / }).click();
+        await repeatSummary.click();
         await verify();
         const selectedDays = desiredUnit === "week"
           ? await dialog.getByRole("button", { pressed: true }).evaluateAll(buttons => buttons.map(b => b.getAttribute("aria-label")).join(", "))
@@ -259,7 +300,7 @@ export function registerRecurringTaskTool(server: McpServer): void {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     },
     ({ title }) => withTasksPage("delete", async (page, state) => {
-      const target = await findSeries(page, title, state);
+      const target = await findTask(page, title, state, true);
       if (target.error) return target.error;
       const { row, menu } = target;
       state.step = "open the series deletion confirmation";

@@ -49,6 +49,8 @@ For example, `{"title":"Review budget","start_date":"2026-12-07"}` creates a tas
 
 To change an existing series in place, call `google_tasks_update_recurring_task` with its exact active title. For example, `{"title":"Review budget","frequency":"weekly","weekdays":["Friday"],"interval":2}` changes it to every other Friday. Supported frequencies are daily, weekly, monthly, and yearly. The interval is 1–99 and defaults to the series’ current multiplier. Supplying weekdays replaces the weekly day selection. A weekdays-only update implies weekly frequency. The tool verifies the rule after reloading Google Tasks. Time, end conditions, and one-off occurrence edits are outside this tool’s inputs.
 
+To make an existing one-off task repeat in place, pass `{"title":"Water the plants","convert_if_not_recurring":true,"weekdays":["Friday"]}` to the update tool. To stop future occurrences, pass `{"title":"Water the plants","frequency":"none"}`. Google keeps the active task and marks its schedule as ended. Google requires a new task if you later want that stopped series to repeat again. The tool uses the native controls available for the selected task.
+
 To delete an entire series, call `google_tasks_delete_recurring_task` with the exact title, for example `{"title":"Review budget"}`. It checks the active occurrence, the configured list, and Google's repeating-task confirmation before deleting all past and future occurrences. If several visible active tasks share the title, give the intended series a unique title first. The recurring-task tools share one Chromium session limit.
 
 ## Quick start

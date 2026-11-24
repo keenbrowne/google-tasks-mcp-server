@@ -45,6 +45,11 @@ test("weekly recurrence is opt-in and validates inputs before opening a browser"
     assert.ok(tools.some((item) => item.name === updateName));
     for (const [fields, message] of [
       [{}, /supply a frequency/i],
+      [{ convert_if_not_recurring: true, interval: 2 }, /specify a frequency/i],
+      [{ convert_if_not_recurring: true, frequency: "weekly" }, /absolute paths/i],
+      [{ frequency: "none" }, /absolute paths/i],
+      [{ frequency: "none", interval: 2 }, /stopping recurrence/i],
+      [{ frequency: "none", convert_if_not_recurring: true }, /stopping recurrence/i],
       [{ interval: 100 }, /interval/i],
       [{ frequency: "daily", weekdays: ["Monday"] }, /weekly schedule/i],
       [{ weekdays: ["Friday", "Friday"] }, /unique/i],
